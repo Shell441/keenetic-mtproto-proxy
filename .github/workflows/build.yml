@@ -23,6 +23,28 @@ jobs:
           wget -q https://downloads.openwrt.org/releases/21.02.0/targets/ramips/mt7621/openwrt-sdk-21.02.0-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64.tar.xz
           tar -xf openwrt-sdk-21.02.0-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64.tar.xz
 
+      - name: Download and install OpenSSL dev package for mipsel
+        run: |
+          SDK_DIR="$(pwd)/openwrt-sdk-21.02.0-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64"
+          TARGET_DIR="${SDK_DIR}/staging_dir/target-mipsel_24kc_musl"
+
+          # Скачиваем libopenssl-dev и libopenssl (run-time) из официального репозитория OpenWrt 21.02
+          wget -q https://downloads.openwrt.org/releases/21.02.0/packages/mipsel_24kc/base/libopenssl1.1_1.1.1w-1_mipsel_24kc.ipk
+          wget -q https://downloads.openwrt.org/releases/21.02.0/packages/mipsel_24kc/base/libopenssl1.1-dev_1.1.1w-1_mipsel_24kc.ipk
+
+          # Распаковываем пакеты
+          mkdir -p ipk-tmp
+          tar -xzf libopenssl1.1_1.1.1w-1_mipsel_24kc.ipk -C ipk-tmp
+          tar -xzf libopenssl1.1-dev_1.1.1w-1_mipsel_24kc.ipk -C ipk-tmp
+
+          # Копируем заголовки и библиотеки в целевой staging_dir SDK
+          cp -r ipk-tmp/usr/include/* ${TARGET_DIR}/usr/include/ 2>/dev/null || cp -r ipk-tmp/include/* ${TARGET_DIR}/usr/include/
+          cp -r ipk-tmp/usr/lib/*.a ${TARGET_DIR}/usr/lib/ 2>/dev/null || true
+          cp -r ipk-tmp/usr/lib/*.so* ${TARGET_DIR}/usr/lib/ 2>/dev/null || true
+
+          # Очищаем временные файлы
+          rm -rf ipk-tmp *.ipk
+
       - name: Clone MTProxy source
         run: |
           git clone https://github.com/TelegramMessenger/MTProxy.git
@@ -36,19 +58,16 @@ jobs:
           export RANLIB=mipsel-openwrt-linux-ranlib
           export STAGING_DIR="${SDK_DIR}/staging_dir"
 
-          # Пути к заголовкам и библиотекам OpenSSL из SDK
           export TARGET_INCLUDE="${SDK_DIR}/staging_dir/target-mipsel_24kc_musl/usr/include"
           export TARGET_LIB="${SDK_DIR}/staging_dir/target-mipsel_24kc_musl/usr/lib"
 
           cd MTProxy
 
-          # Исправляем Makefile: убираем x86-флаги, ставим MIPS 24Kc
           sed -i 's/ARCH_FLAGS = -mpclmul -march=core2 -mfpmath=sse -mssse3/ARCH_FLAGS = -march=24kc/' Makefile
           sed -i 's/CFLAGS = \$(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing/CFLAGS = \$(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -march=24kc -fno-strict-aliasing/' Makefile
 
           make clean
 
-          # Компиляция с указанием заголовков и статической линковкой
           make CINCLUDE="-iquote common -iquote . -I${TARGET_INCLUDE}" \
                LDFLAGS="-static -L${TARGET_LIB} -lssl -lcrypto -lpthread" \
                all
