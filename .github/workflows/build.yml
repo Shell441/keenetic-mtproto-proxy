@@ -56,8 +56,8 @@ jobs:
           find . -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/extra->start_rdtsc = rdtsc ();/extra->start_rdtsc = 0;/g' {} +
           find . -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/rdtsc()/0/g' {} +
 
-          # Заменяем аппаратную crc32c_hw на программную для MIPS
-          sed -i '/^unsigned crc32c_hw/,/^}/c\unsigned crc32c_hw (unsigned crc, const void *data, int len) {\n  return crc32c_soft(crc, data, len);\n}' common/crc32c.c
+          # Отключаем аппаратную crc32c через макрос (без sed)
+          echo "#define crc32c_hw crc32c_soft" >> common/crc32c.h
 
       - name: Build static binary for mipsel
         run: |
