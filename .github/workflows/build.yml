@@ -23,11 +23,12 @@ jobs:
           cd mtg
           git checkout v1.0.4
 
-          # Вставляем "return" в начало функции Init, чтобы она ничего не делала
+          # Делаем функцию Init() пустой (сразу возвращаемся)
           sed -i '/^func Init() {/a\    return' telegram/init.go
 
-          # Удаляем принудительный вызов Init() из cli/proxy.go
+          # Удаляем вызов telegram.Init() и строку импорта telegram
           sed -i '/telegram.Init()/d' cli/proxy.go
+          sed -i '/\"github.com\/9seconds\/mtg\/telegram\"/d' cli/proxy.go
 
           GOOS=linux GOARCH=mipsle GOMIPS=softfloat CGO_ENABLED=0 go build -o mtg -ldflags "-s -w"
 
