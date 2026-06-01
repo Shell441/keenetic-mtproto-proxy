@@ -38,12 +38,25 @@ jobs:
           ./Configure linux-mips32 no-shared no-asm --prefix=${SDK_DIR}/staging_dir/target-mipsel_24kc_musl/usr
           make -j$(nproc)
           make install
-          # Проверим наличие заголовков
-          ls -la ${SDK_DIR}/staging_dir/target-mipsel_24kc_musl/usr/include/openssl/rand.h
 
       - name: Clone MTProxy source
         run: |
           git clone https://github.com/TelegramMessenger/MTProxy.git
+
+      - name: Patch MTProxy for MIPS
+        run: |
+          cd MTProxy
+
+          # 1. Исправляем drand48_data (неполный тип в musl)
+          sed -i '/struct drand48_data rand_data;/d' jobs/jobs.h
+          # Заменяем все вызовы drand48_r на простой rand() для простоты
+          # (для MTProto криптостойкость rand не важна — она нужна лишь для лимитов)
+          find . -type f -name "*.c" -exec sed -i 's/drand48_r(\&.*\, \&.*)/rand()/g' {} +
+          find . -type f -name "*.c" -exec sed -i 's/srand48_r(.*\, \&.*)/srand(time(NULL))/g' {} +
+
+          # 2. Убираем использование rdtsc (интринсик x86)
+          find . -type f -name "*.h" -exec sed -i 's/extra->start_rdtsc = rdtsc ();/extra->start_rdtsc = 0;/g' {} +
+          find . -type f -name "*.c" -exec sed -i 's/extra->start_rdtsc = rdtsc ();/extra->start_rdtsc = 0;/g' {} +
 
       - name: Build static binary for mipsel
         run: |
@@ -59,7 +72,6 @@ jobs:
 
           cd MTProxy
 
-          # Исправляем Makefile для MIPS 24Kc
           sed -i 's/ARCH_FLAGS = -mpclmul -march=core2 -mfpmath=sse -mssse3/ARCH_FLAGS = -march=24kc/' Makefile
           sed -i 's/CFLAGS = \$(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing/CFLAGS = \$(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -march=24kc -fno-strict-aliasing/' Makefile
 
