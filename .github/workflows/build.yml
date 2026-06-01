@@ -36,15 +36,22 @@ jobs:
           export RANLIB=mipsel-openwrt-linux-ranlib
           export STAGING_DIR="${SDK_DIR}/staging_dir"
 
+          # Пути к заголовкам и библиотекам OpenSSL из SDK
+          export TARGET_INCLUDE="${SDK_DIR}/staging_dir/target-mipsel_24kc_musl/usr/include"
+          export TARGET_LIB="${SDK_DIR}/staging_dir/target-mipsel_24kc_musl/usr/lib"
+
           cd MTProxy
 
-          # Убираем флаги для x86, ставим правильные для MIPS 24Kc
+          # Исправляем Makefile: убираем x86-флаги, ставим MIPS 24Kc
           sed -i 's/ARCH_FLAGS = -mpclmul -march=core2 -mfpmath=sse -mssse3/ARCH_FLAGS = -march=24kc/' Makefile
           sed -i 's/CFLAGS = \$(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing/CFLAGS = \$(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -march=24kc -fno-strict-aliasing/' Makefile
 
           make clean
-          # Собираем статически, чтобы не зависеть от библиотек Keenetic
-          make LDFLAGS="-static"
+
+          # Компиляция с указанием заголовков и статической линковкой
+          make CINCLUDE="-iquote common -iquote . -I${TARGET_INCLUDE}" \
+               LDFLAGS="-static -L${TARGET_LIB} -lssl -lcrypto -lpthread" \
+               all
 
       - name: Check binary
         run: |
