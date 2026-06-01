@@ -56,9 +56,17 @@ jobs:
           find . -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/extra->start_rdtsc = rdtsc ();/extra->start_rdtsc = 0;/g' {} +
           find . -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/rdtsc()/0/g' {} +
 
-          # ПОЛНОСТЬЮ УДАЛЯЕМ аппаратную crc32c_hw (асм для MIPS)
+          # Удаляем ВООБЩЕ ВСЕ проблемные функции из common/crc32c.c
+          # Удаляем crc32c_hw (содержит ассемблерные инструкции)
           sed -i '/^unsigned crc32c_hw/,/^}/d' common/crc32c.c
-          # Перенаправляем вызовы на программную реализацию
+          # Удаляем crc32c_combine_clmul (тоже содержит crc32b/l)
+          sed -i '/^static unsigned crc32c_combine_clmul/,/^}/d' common/crc32c.c
+          # Удаляем crc32c_combine (если есть)
+          sed -i '/^unsigned crc32c_combine/,/^}/d' common/crc32c.c
+          # На всякий случай удаляем crc32_residue (если использует asm)
+          sed -i '/^static unsigned crc32c_residue/,/^}/d' common/crc32c.c
+
+          # Перенаправляем crc32c_hw -> crc32c_soft (на случай если где-то вызывается)
           echo "#define crc32c_hw crc32c_soft" >> common/crc32c.h
 
       - name: Build static binary for mipsel
