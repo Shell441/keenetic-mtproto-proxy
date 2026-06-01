@@ -16,23 +16,30 @@ jobs:
       - name: Install host dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git wget xz-utils libncurses-dev gawk unzip
+          sudo apt-get install -y build-essential git wget xz-utils
 
-      - name: Download OpenWrt SDK for MT7621 (mipsel)
+      - name: Download OpenWrt SDK (toolchain only)
         run: |
           wget -q https://downloads.openwrt.org/releases/21.02.0/targets/ramips/mt7621/openwrt-sdk-21.02.0-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64.tar.xz
           tar -xf openwrt-sdk-21.02.0-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64.tar.xz
 
-      - name: Setup OpenWrt SDK and install OpenSSL
+      - name: Download and compile OpenSSL for mipsel
         run: |
-          cd openwrt-sdk-21.02.0-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64
-          # Обновляем список пакетов и устанавливаем libopenssl (и заголовки)
-          ./scripts/feeds update -a
-          ./scripts/feeds install libopenssl
-          # Компилируем и устанавливаем библиотеку в staging_dir
-          make package/feeds/base/libopenssl/compile -j$(nproc)
-          # Проверяем наличие заголовков
-          ls -la staging_dir/target-mipsel_24kc_musl/usr/include/openssl/rand.h
+          wget -q https://www.openssl.org/source/openssl-1.1.1w.tar.gz
+          tar -xzf openssl-1.1.1w.tar.gz
+          cd openssl-1.1.1w
+
+          export SDK_DIR="$(pwd)/../openwrt-sdk-21.02.0-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64"
+          export PATH="${SDK_DIR}/staging_dir/toolchain-mipsel_24kc_gcc-8.4.0_musl/bin:${PATH}"
+          export CC=mipsel-openwrt-linux-gcc
+          export AR=mipsel-openwrt-linux-ar
+          export RANLIB=mipsel-openwrt-linux-ranlib
+
+          ./Configure linux-mips32 no-shared no-asm --prefix=${SDK_DIR}/staging_dir/target-mipsel_24kc_musl/usr
+          make -j$(nproc)
+          make install
+          # Проверим наличие заголовков
+          ls -la ${SDK_DIR}/staging_dir/target-mipsel_24kc_musl/usr/include/openssl/rand.h
 
       - name: Clone MTProxy source
         run: |
@@ -52,11 +59,11 @@ jobs:
 
           cd MTProxy
 
+          # Исправляем Makefile для MIPS 24Kc
           sed -i 's/ARCH_FLAGS = -mpclmul -march=core2 -mfpmath=sse -mssse3/ARCH_FLAGS = -march=24kc/' Makefile
           sed -i 's/CFLAGS = \$(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing/CFLAGS = \$(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -march=24kc -fno-strict-aliasing/' Makefile
 
           make clean
-
           make CINCLUDE="-iquote common -iquote . -I${TARGET_INCLUDE}" \
                LDFLAGS="-static -L${TARGET_LIB} -lssl -lcrypto -lpthread" \
                all
