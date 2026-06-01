@@ -1,4 +1,4 @@
-name: Build mtg v1.0.4 for Keenetic (mipsle)
+name: Build mtg v1.0.4 patched for Keenetic
 
 on:
   push:
@@ -17,15 +17,22 @@ jobs:
         with:
           go-version: '1.13'
 
-      - name: Build mtg v1.0.4 for mipsle
+      - name: Clone and patch mtg
         run: |
           git clone https://github.com/9seconds/mtg.git
           cd mtg
           git checkout v1.0.4
+
+          # Убираем панику при неудачной загрузке секрета
+          sed -i 's/panic(err)/log.Println("Warning: cannot fetch secret:", err)/' telegram/init.go
+
+          # Отключаем принудительный вызов Init() – просто комментируем
+          sed -i '/telegram.Init()/d' cli/proxy.go
+
           GOOS=linux GOARCH=mipsle GOMIPS=softfloat CGO_ENABLED=0 go build -o mtg -ldflags "-s -w"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mtg-v1.0.4-mipsle-static
+          name: mtg-v1.0.4-patched-mipsle
           path: mtg/mtg
