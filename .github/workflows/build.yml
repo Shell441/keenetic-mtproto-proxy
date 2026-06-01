@@ -47,16 +47,20 @@ jobs:
         run: |
           cd MTProxy
 
-          # 1. Исправляем drand48_data (неполный тип в musl)
+          # Убираем drand48_data и drand48_r
           sed -i '/struct drand48_data rand_data;/d' jobs/jobs.h
-          # Заменяем все вызовы drand48_r на простой rand() для простоты
-          # (для MTProto криптостойкость rand не важна — она нужна лишь для лимитов)
-          find . -type f -name "*.c" -exec sed -i 's/drand48_r(\&.*\, \&.*)/rand()/g' {} +
-          find . -type f -name "*.c" -exec sed -i 's/srand48_r(.*\, \&.*)/srand(time(NULL))/g' {} +
+          find . -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/drand48_r(\&.*, \&.*)/rand()/g' {} +
+          find . -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/srand48_r(.*, \&.*)/srand(time(NULL))/g' {} +
 
-          # 2. Убираем использование rdtsc (интринсик x86)
-          find . -type f -name "*.h" -exec sed -i 's/extra->start_rdtsc = rdtsc ();/extra->start_rdtsc = 0;/g' {} +
-          find . -type f -name "*.c" -exec sed -i 's/extra->start_rdtsc = rdtsc ();/extra->start_rdtsc = 0;/g' {} +
+          # Убираем rdtsc()
+          find . -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/extra->start_rdtsc = rdtsc ();/extra->start_rdtsc = 0;/g' {} +
+          find . -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/rdtsc()/0/g' {} +
+
+          # Отключаем ассемблерные инструкции crc32 для MIPS (нет на 24Kc)
+          sed -i '/#if defined(__mips__)/,/#endif/ s/^/\/\//' common/crc32c.c
+          # На всякий случай удалим и другие потенциальные asm-блоки
+          sed -i '/__asm__.*crc32b/d' common/crc32c.c
+          sed -i '/__asm__.*crc32l/d' common/crc32c.c
 
       - name: Build static binary for mipsel
         run: |
