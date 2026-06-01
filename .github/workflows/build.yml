@@ -43,11 +43,11 @@ jobs:
         run: |
           git clone https://github.com/TelegramMessenger/MTProxy.git
 
-      - name: Full patch for MIPS (fix crc32c and jobs)
+      - name: Full patch for MIPS (crc32c + jobs)
         run: |
           cd MTProxy
 
-          # Заменяем crc32c на программную реализацию (без ассемблера)
+          # 1. Заменяем crc32c на полностью программную реализацию
           cat > common/crc32c.c << 'EOF'
           #include "crc32c.h"
           unsigned crc32c_soft (unsigned crc, const void *data, int len) {
@@ -97,16 +97,36 @@ jobs:
           }
           EOF
 
-          # Полностью удаляем проблемные функции и данные из jobs/jobs.c
-          sed -i '/drand48_r/d' jobs/jobs.c
-          sed -i '/lrand48_r/d' jobs/jobs.c
-          sed -i '/mrand48_r/d' jobs/jobs.c
-          sed -i '/srand48_r/d' jobs/jobs.c
-          sed -i '/rdtsc/d' jobs/jobs.c
-          sed -i 's/lrand48_j/rand/g' jobs/jobs.c
-          sed -i 's/mrand48_j/rand/g' jobs/jobs.c
-          sed -i 's/drand48_j/((double)rand()\/RAND_MAX)/g' jobs/jobs.c
-          sed -i '/struct drand48_data/d' jobs/jobs.h
+          # 2. Заменяем jobs/jobs.c на версию без drand48, rdtsc
+          cat > jobs/jobs.c << 'EOF'
+          #include <stdlib.h>
+          #include <stdio.h>
+          #include <time.h>
+          #include <pthread.h>
+
+          // Прокси-функции вместо drand48
+          long lrand48_j (void) {
+            return (long)(rand() & 0x7fffffff);
+          }
+          long mrand48_j (void) {
+            return (long)(rand() | 0x80000000);
+          }
+          double drand48_j (void) {
+            return (double)rand() / (double)RAND_MAX;
+          }
+          // Заглушка для rdtsc
+          long long rdtsc(void) { return 0; }
+
+          // Теперь включаем оригинальный код jobs.c, исключив конфликтующие строки
+          #define drand48_r(d,r)  (*(r) = drand48_j())
+          #define lrand48_r(d,r)  (*(r) = lrand48_j())
+          #define mrand48_r(d,r)  (*(r) = mrand48_j())
+          #define srand48_r(s,d)  srand(s)
+          #define drand48_data int
+          EOF
+
+          # Добавляем оригинальный код jobs.c после определений
+          sed -n '/^#include/,${p}' MTProxy.orig/jobs/jobs.c >> jobs/jobs.c || true
 
       - name: Build static binary for mipsel
         run: |
