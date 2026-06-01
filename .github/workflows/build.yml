@@ -23,11 +23,16 @@ jobs:
           cd mtg
           git checkout v1.0.4
 
-          # Добавляем импорт "log" и заменяем panic на log.Println
-          sed -i 's/"errors"/"errors"\n\t"log"/' telegram/init.go
-          sed -i 's/panic(err)/log.Println("Warning: cannot fetch secret:", err)/' telegram/init.go
+          # Заменяем telegram/init.go на заглушку
+          cat > telegram/init.go << 'EOF'
+          package telegram
 
-          # Отключаем принудительный вызов Init() – просто комментируем
+          func Init() {
+              // Stub: no network request
+          }
+          EOF
+
+          # Удаляем принудительный вызов Init() из cli/proxy.go
           sed -i '/telegram.Init()/d' cli/proxy.go
 
           GOOS=linux GOARCH=mipsle GOMIPS=softfloat CGO_ENABLED=0 go build -o mtg -ldflags "-s -w"
