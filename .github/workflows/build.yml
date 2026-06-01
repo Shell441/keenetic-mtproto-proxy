@@ -23,14 +23,8 @@ jobs:
           cd mtg
           git checkout v1.0.4
 
-          # Заменяем telegram/init.go на заглушку
-          cat > telegram/init.go << 'EOF'
-          package telegram
-
-          func Init() {
-              // Stub: no network request
-          }
-          EOF
+          # Вставляем "return" в начало функции Init, чтобы она ничего не делала
+          sed -i '/^func Init() {/a\    return' telegram/init.go
 
           # Удаляем принудительный вызов Init() из cli/proxy.go
           sed -i '/telegram.Init()/d' cli/proxy.go
