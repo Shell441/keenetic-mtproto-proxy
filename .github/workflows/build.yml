@@ -12,10 +12,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Go 1.14
+      - name: Install Go 1.16
         uses: actions/setup-go@v5
         with:
-          go-version: '1.14'
+          go-version: '1.16'
 
       - name: Clone and build mtg
         run: |
