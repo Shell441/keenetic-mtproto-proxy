@@ -1,0 +1,57 @@
+name: Build static MTProto Proxy for Keenetic (mipsel)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git wget xz-utils
+
+      - name: Download OpenWrt SDK for MT7621 (mipsel)
+        run: |
+          wget -q https://downloads.openwrt.org/releases/21.02.0/targets/ramips/mt7621/openwrt-sdk-21.02.0-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64.tar.xz
+          tar -xf openwrt-sdk-21.02.0-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64.tar.xz
+
+      - name: Clone MTProxy source
+        run: |
+          git clone https://github.com/TelegramMessenger/MTProxy.git
+
+      - name: Build static binary for mipsel
+        run: |
+          export SDK_DIR="$(pwd)/openwrt-sdk-21.02.0-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64"
+          export PATH="${SDK_DIR}/staging_dir/toolchain-mipsel_24kc_gcc-8.4.0_musl/bin:${PATH}"
+          export CC=mipsel-openwrt-linux-gcc
+          export AR=mipsel-openwrt-linux-ar
+          export RANLIB=mipsel-openwrt-linux-ranlib
+          export STAGING_DIR="${SDK_DIR}/staging_dir"
+
+          cd MTProxy
+
+          # Убираем флаги для x86, ставим правильные для MIPS 24Kc
+          sed -i 's/ARCH_FLAGS = -mpclmul -march=core2 -mfpmath=sse -mssse3/ARCH_FLAGS = -march=24kc/' Makefile
+          sed -i 's/CFLAGS = \$(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing/CFLAGS = \$(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -march=24kc -fno-strict-aliasing/' Makefile
+
+          make clean
+          # Собираем статически, чтобы не зависеть от библиотек Keenetic
+          make LDFLAGS="-static"
+
+      - name: Check binary
+        run: |
+          file MTProxy/objs/bin/mtproto-proxy
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtproto-proxy-mipsel-static
+          path: MTProxy/objs/bin/mtproto-proxy
