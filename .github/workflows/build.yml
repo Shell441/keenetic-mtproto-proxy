@@ -23,7 +23,8 @@ jobs:
           cd mtg
           git checkout v1.0.4
 
-          # Убираем панику при неудачной загрузке секрета
+          # Добавляем импорт "log" и заменяем panic на log.Println
+          sed -i 's/"errors"/"errors"\n\t"log"/' telegram/init.go
           sed -i 's/panic(err)/log.Println("Warning: cannot fetch secret:", err)/' telegram/init.go
 
           # Отключаем принудительный вызов Init() – просто комментируем
